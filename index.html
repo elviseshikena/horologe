@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Horologe - Devlog</title>
+<style>
+  :root {
+    --bg: #f5f5f2; --fg: #1d1d1b; --dim: #77776f; --line: #d8d8d0; --code: #ebebe5; --link: #1d1d1b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161614; --fg: #dcdcd4; --dim: #8a8a80; --line: #33332f; --code: #212120; --link: #dcdcd4;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161614; --fg: #dcdcd4; --dim: #8a8a80; --line: #33332f; --code: #212120; --link: #dcdcd4;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    margin: 0 auto; max-width: 72ch; padding: 3rem 1.25rem 5rem;
+    font: 15px/1.7 ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    color: var(--fg); background: var(--bg);
+  }
+  a { color: var(--link); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { text-decoration-style: wavy; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; }
+  header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3rem; }
+  header a { text-decoration: none; font-weight: 700; }
+  button { font: inherit; color: var(--dim); background: none; border: 0; cursor: pointer; padding: 0; }
+  button:hover { color: var(--fg); }
+  h1, h2, h3 { line-height: 1.3; margin: 2rem 0 .75rem; font-size: 1em; }
+  h1 { font-size: 1.35em; margin-top: 0; }
+  h2::before { content: "## "; color: var(--dim); }
+  h3::before { content: "### "; color: var(--dim); }
+  .meta { color: var(--dim); font-size: .9em; }
+  .intro { color: var(--dim); margin: 0 0 2.5rem; }
+  ul.posts { list-style: none; padding: 0; margin: 0; }
+  ul.posts li { padding: 1.1rem 0; border-top: 1px solid var(--line); }
+  ul.posts li:last-child { border-bottom: 1px solid var(--line); }
+  ul.posts .title { font-weight: 700; }
+  ul.posts p { margin: .35rem 0 0; }
+  article img { max-width: 100%; height: auto; display: block; margin: 1.5rem 0; border: 1px solid var(--line); }
+  article p { margin: 1rem 0; }
+  article hr { border: 0; border-top: 1px dashed var(--line); margin: 2rem 0; }
+  blockquote { margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--line); color: var(--dim); }
+  code { background: var(--code); padding: .1em .35em; }
+  pre { background: var(--code); padding: 1rem; overflow-x: auto; line-height: 1.5; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--line); padding: .3rem .7rem; text-align: left; }
+  footer { margin-top: 3.5rem; color: var(--dim); font-size: .9em; }
+</style>
+</head>
+<body>
+<header>
+  <a href="#" id="site-title">Horologe - Devlog</a>
+  <button id="theme" aria-label="Toggle light and dark theme">theme</button>
+</header>
+<main id="app">loading…</main>
+<footer>built with markdown</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script>
+// ---- edit these ----
+const SITE_NAME = "Horologe - Devlog";
+const INTRO = "Notes, experiments and progress on things I’m building.";
+// --------------------
+
+const app = document.getElementById("app");
+document.getElementById("site-title").textContent = SITE_NAME;
+let posts = [];
+
+function parse(raw) {
+  const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+  const meta = {}, body = m ? m[2] : raw;
+  if (m) m[1].split(/\r?\n/).forEach(l => {
+    const i = l.indexOf(":");
+    if (i > 0) meta[l.slice(0, i).trim()] = l.slice(i + 1).trim();
+  });
+  return { title: meta.title || "untitled", date: meta.date || "", tags: meta.tags || "", summary: meta.summary || "", body };
+}
+
+async function load() {
+  try {
+    const slugs = await (await fetch("posts.json")).json();
+    posts = await Promise.all(slugs.map(async slug => {
+      const res = await fetch(`posts/${slug}.md`);
+      if (!res.ok) throw new Error(`posts/${slug}.md not found`);
+      return { slug, ...parse(await res.text()) };
+    }));
+    posts.sort((a, b) => b.date.localeCompare(a.date));
+    route();
+  } catch (e) {
+    app.textContent = "Could not load posts: " + e.message + ". If you opened this file directly, serve the folder instead (python3 -m http.server).";
+  }
+}
+
+function el(tag, props = {}, text = "") {
+  const n = document.createElement(tag);
+  Object.assign(n, props);
+  if (text) n.textContent = text;
+  return n;
+}
+
+function renderList() {
+  document.title = SITE_NAME;
+  app.replaceChildren(el("p", { className: "intro" }, INTRO));
+  const ul = el("ul", { className: "posts" });
+  posts.forEach(p => {
+    const li = el("li");
+    const a = el("a", { href: "#" + p.slug, className: "title" }, p.title);
+    li.append(a, el("div", { className: "meta" }, [p.date, p.tags].filter(Boolean).join("  ·  ")));
+    if (p.summary) li.append(el("p", {}, p.summary));
+    ul.append(li);
+  });
+  app.append(ul);
+}
+
+function renderPost(p) {
+  document.title = p.title + " | " + SITE_NAME;
+  const art = el("article");
+  art.append(el("h1", {}, p.title), el("div", { className: "meta" }, [p.date, p.tags].filter(Boolean).join("  ·  ")));
+  const body = el("div");
+  body.innerHTML = marked.parse(p.body);
+  body.querySelectorAll("img").forEach(img => {
+    const s = img.getAttribute("src");
+    if (s && !/^(https?:|data:|\/)/.test(s)) img.src = "posts/" + s;
+    img.loading = "lazy";
+  });
+  art.append(body, el("p", {}, ""));
+  const back = el("a", { href: "#" }, "← all posts");
+  art.lastChild.append(back);
+  app.replaceChildren(art);
+}
+
+function route() {
+  const slug = decodeURIComponent(location.hash.slice(1));
+  const p = posts.find(x => x.slug === slug);
+  p ? renderPost(p) : renderList();
+  window.scrollTo(0, 0);
+}
+
+window.addEventListener("hashchange", route);
+document.getElementById("theme").addEventListener("click", () => {
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  const cur = document.documentElement.dataset.theme || (dark ? "dark" : "light");
+  document.documentElement.dataset.theme = cur === "dark" ? "light" : "dark";
+});
+load();
+</script>
+</body>
+</html>
